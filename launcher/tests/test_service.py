@@ -100,3 +100,14 @@ class ServiceTests(unittest.TestCase):
                 with game_lock(game.root): pass
         self.service.launch=launch
         self.assertEqual(self.service.play(self.game).state,'READY')
+
+    def test_concurrent_new_policy_cannot_be_overwritten(self):
+        from bc2launcher.manifest import verify_manifest
+        newer=verify_manifest(envelope(payload(2)),PUBLIC,NOW,0)
+        original=self.service.fetch
+        def accept_other_process_policy(url,limit):
+            self.settings.accept_policy(newer)
+            return original(url,limit)
+        self.service.fetch=accept_other_process_policy
+        self.assertEqual(self.service.check(self.game).state,'ERROR')
+        self.assertEqual(self.settings.load()['highest_revision'],2)

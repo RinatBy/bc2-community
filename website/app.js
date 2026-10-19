@@ -4,6 +4,7 @@ const dialog = document.getElementById('dialog');
 document.querySelectorAll('[data-dialog]').forEach(button => {
   button.addEventListener('click', () => {
     const title = titles[button.dataset.dialog];
+    document.getElementById('dialog-text').textContent = button.dataset.dialog === 'download' ? 'Файлы подключения выдаются через лаунчер.' : 'Ссылка скоро появится.';
     if (!title) return;
     document.getElementById('dialog-title').textContent = title;
     dialog.showModal();
