@@ -11,6 +11,7 @@ sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'launcher'))
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.hazmat.primitives.serialization import Encoding,PrivateFormat,PublicFormat,NoEncryption,load_pem_private_key
 from bc2launcher.manifest import HOST, LIMITS, verify_manifest
+from bc2launcher import VERSION
 
 
 def _sign(payload,key):
@@ -23,7 +24,7 @@ def sign_package(folder,base_url,revision,package_id,key,now):
     for name in LIMITS:
         data=(Path(folder)/name).read_bytes()
         assets.append(dict(name=name,url=base_url.rstrip('/')+'/'+name,size=len(data),sha256=hashlib.sha256(data).hexdigest()))
-    p=dict(schema=1,revision=revision,package_id=package_id,minimum_launcher_version='0.1.0',
+    p=dict(schema=1,revision=revision,package_id=package_id,minimum_launcher_version=VERSION,
            expires_at=(now+timedelta(days=90)).isoformat(),master_host=HOST,assets=assets)
     encoded=_sign(p,key)
     verify_manifest(encoded,key.public_key().public_bytes(Encoding.Raw,PublicFormat.Raw),now,0)

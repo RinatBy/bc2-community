@@ -11,6 +11,8 @@ try {
     & $launcherPython -m PyInstaller --noconfirm --clean launcher/BC2Launcher.spec
     if ($LASTEXITCODE -ne 0) { throw 'Build failed.' }
     & $launcherPython -m pip freeze | Set-Content -LiteralPath requirements-lock.txt -Encoding utf8
-    Compress-Archive -LiteralPath 'dist\BC2Launcher' -DestinationPath 'dist\BC2Launcher-test-0.1.0.zip' -Force
-    Get-FileHash -LiteralPath 'dist\BC2Launcher-test-0.1.0.zip' -Algorithm SHA256
+    $launcherVersion = & $launcherPython -c 'from bc2launcher import VERSION; print(VERSION)'
+    $archivePath = "dist\BC2Launcher-test-$launcherVersion.zip"
+    Compress-Archive -LiteralPath 'dist\BC2Launcher' -DestinationPath $archivePath -Force
+    Get-FileHash -LiteralPath $archivePath -Algorithm SHA256
 } finally { Pop-Location }

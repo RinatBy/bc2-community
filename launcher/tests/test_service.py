@@ -81,3 +81,22 @@ class ServiceTests(unittest.TestCase):
         self.service.fetch=bad
         self.assertEqual(self.service.check(self.game).state,'ERROR')
         self.assertEqual(len(calls),1)
+
+    def test_unsupported_new_policy_still_advances_replay_guard(self):
+        self.service.update(self.game)
+        self.policy['revision']=2; self.policy['minimum_launcher_version']='9.0.0'
+        self.assertEqual(self.service.check(self.game).state,'ERROR')
+        self.assertEqual(self.settings.load()['highest_revision'],2)
+        self.policy=payload(1)
+        self.assertEqual(self.service.play(self.game).state,'ERROR')
+        self.assertFalse(self.launched)
+
+    def test_launch_holds_game_operation_lock(self):
+        from bc2launcher.transaction import game_lock
+        from bc2launcher.manifest import UpdateError
+        self.service.update(self.game)
+        def launch(game):
+            with self.assertRaises(UpdateError):
+                with game_lock(game.root): pass
+        self.service.launch=launch
+        self.assertEqual(self.service.play(self.game).state,'READY')

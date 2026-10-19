@@ -71,3 +71,9 @@ class TransactionTests(unittest.TestCase):
         with patch('bc2launcher.transaction.ensure_game_closed',side_effect=UpdateError('game running')):
             with self.assertRaises(UpdateError): install_bytes(self.root,self.new,'x')
         self.assertEqual((self.root/'dinput8.dll').read_bytes(),b'old')
+
+    def test_changed_ini_aborts_before_any_write(self):
+        (self.root/'bfbc2.ini').write_bytes(b'changed by user')
+        with self.assertRaises(UpdateError):install_bytes(self.root,self.new,'x',expected_ini=b'original')
+        self.assertEqual((self.root/'dinput8.dll').read_bytes(),b'old')
+        self.assertEqual((self.root/'bfbc2.ini').read_bytes(),b'changed by user')

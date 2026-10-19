@@ -140,9 +140,19 @@ def _install_locked(root, files, package):
     return ident
 
 
-def install_bytes(game_dir: Path, files: dict, package: str):
+_NOT_PROVIDED=object()
+
+
+def install_bytes(game_dir: Path, files: dict, package: str, expected_ini=_NOT_PROVIDED):
     try:
-        with game_lock(game_dir) as root: return _install_locked(root,files,package)
+        with game_lock(game_dir) as root:
+            _recover(root)
+            if expected_ini is not _NOT_PROVIDED:
+                p=safe_path(root,root/'bfbc2.ini')
+                if p.exists() and p.stat().st_size>LIMITS['bfbc2.ini']: raise UpdateError("INI слишком большой.")
+                current=p.read_bytes() if p.exists() else None
+                if current!=expected_ini: raise UpdateError("INI изменился во время загрузки. Повторите обновление; ваши настройки сохранены.")
+            return _install_locked(root,files,package)
     except UpdateError: raise
     except (OSError,ValueError,KeyError,TypeError) as exc: raise UpdateError("Не удалось изменить файлы. Закройте игру, проверьте права папки и повторите попытку.") from exc
 

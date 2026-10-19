@@ -8,7 +8,7 @@ from . import VERSION
 from .manifest import verify_manifest, MANIFEST_LIMIT, LIMITS, UpdateError, version_tuple
 from .network import fetch_bytes
 from .game import validate_game_dir, safe_path, read_managed_ini, merge_connection_ini, ensure_game_closed
-from .transaction import install_bytes, recover_interrupted, restore_backup, list_backups
+from .transaction import install_bytes, recover_interrupted, restore_backup, list_backups, game_lock, _recover
 
 FEED = 'https://bc2.uplay2.ru/updates/stable.json'
 FALLBACK_FEED = 'https://raw.githubusercontent.com/RinatBy/bc2-community/main/website/updates/stable.json'
@@ -41,18 +41,17 @@ class LauncherService:
         r=verify_manifest(raw,self.public_key,self.clock(),saved['highest_revision'])
         if r.revision==saved['highest_revision'] and saved.get('payload_sha256')!=r.payload_sha256:
             raise UpdateError("Содержимое выпуска изменено без новой ревизии. Обратитесь к администратору.")
+        self.settings.accept_policy(r)
         if version_tuple(r.minimum_launcher_version)>version_tuple(VERSION):
             raise UpdateError("Нужна новая версия лаунчера. Скачайте её с bc2.uplay2.ru.")
-        saved.update(highest_revision=r.revision,payload_sha256=r.payload_sha256)
-        self.settings.save(saved)
         return r
 
     def _cancelled(self):
         if self.cancel.is_set(): raise UpdateError("Операция отменена. Файлы игры сохранены.")
 
-    def _check(self,folder):
+    def _check(self,folder,recover=True):
         game=validate_game_dir(Path(folder))
-        recover_interrupted(game.root)
+        if recover: recover_interrupted(game.root)
         r=self._policy()
         for asset in r.assets:
             p=safe_path(game.root,game.root/asset.name)
@@ -86,9 +85,8 @@ class LauncherService:
             original=ini.read_bytes() if ini.exists() else None
             files['bfbc2.ini']=merge_connection_ini(original,files['bfbc2.ini'],r.master_host)
             self._cancelled(); self.progress('Сохранение резервной копии и установка…')
-            install_bytes(game.root,files,r.package_id)
-            saved=self.settings.load(); saved.update(game_dir=str(game.root),installed_package=r.package_id)
-            self.settings.save(saved)
+            install_bytes(game.root,files,r.package_id,expected_ini=original)
+            self.settings.update_fields(game_dir=str(game.root),installed_package=r.package_id)
             return self._check(game.root)
         return self._run(action)
 
@@ -104,9 +102,11 @@ class LauncherService:
 
     def play(self,game_dir):
         def action():
-            result=self._check(game_dir)
-            if result.allowed:
-                self._cancelled(); ensure_game_closed()
-                self.launch(validate_game_dir(Path(game_dir)))
-            return result
+            with game_lock(Path(game_dir)) as root:
+                _recover(root)
+                result=self._check(root,recover=False)
+                if result.allowed:
+                    self._cancelled(); ensure_game_closed()
+                    self.launch(validate_game_dir(root))
+                return result
         return self._run(action)

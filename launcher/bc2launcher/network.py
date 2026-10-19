@@ -3,6 +3,7 @@ import time
 import urllib.request
 import urllib.parse
 from .manifest import UpdateError
+from . import VERSION
 
 ALLOWED_HOSTS = frozenset({'bc2.uplay2.ru', 'github.com',
                           'raw.githubusercontent.com', 'release-assets.githubusercontent.com', 'objects.githubusercontent.com'})
@@ -30,7 +31,7 @@ OPENER = urllib.request.build_opener(SafeRedirect(), urllib.request.HTTPSHandler
 def fetch_bytes(url: str, max_bytes: int) -> bytes:
     validate_url(url)
     try:
-        request = urllib.request.Request(url, headers={'User-Agent': 'BC2Launcher/0.1.0', 'Cache-Control': 'no-cache'})
+        request = urllib.request.Request(url, headers={'User-Agent': 'BC2Launcher/'+VERSION, 'Cache-Control': 'no-cache'})
         with OPENER.open(request, timeout=20) as response:
             validate_url(response.geturl())
             chunks, total, started = [], 0, time.monotonic()
