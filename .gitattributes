@@ -1,0 +1,13 @@
+* text=auto
+*.py text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.yml text eol=lf
+*.bin binary
+*.ttf binary
+*.png binary
+*.dll binary
+*.zip binary
+*-OFL.txt whitespace=-blank-at-eol
