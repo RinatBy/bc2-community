@@ -15,9 +15,6 @@ h1,h2,p{margin:0}
 .brand{display:flex;align-items:center;gap:13px;font:500 32px/1 Oswald,'Arial Narrow',Arial,sans-serif}
 .brand>span:last-child>span{color:#efae42}
 .brand-mark{display:inline-flex;width:39px;height:45px;align-items:center;justify-content:center;background:#efae42;color:#1b251e;font-size:30px;font-weight:700;transform:skew(-8deg)}
-.text-button{font-size:16px;padding:5px 0;color:#ececdd}
-.text-button:hover{color:#efae42}
-.login span{margin-left:15px;color:#efae42}
 .main{width:calc(100% - 112px);max-width:1600px;margin:auto;min-height:calc(100svh - 190px);display:grid;grid-template-columns:1.1fr .9fr;gap:90px;align-items:center;padding:45px 0 65px}
 .intro{max-width:650px}
 .eyebrow{font-size:16px;letter-spacing:2px;font-weight:600;color:#d7dfcb;margin-bottom:24px}
@@ -35,16 +32,7 @@ h1 em{font-style:normal;color:#efae42}
 .how ol{counter-reset:steps;list-style:none;padding:0;margin:0;display:grid;gap:22px}
 .how li{counter-increment:steps;display:grid;grid-template-columns:25px 1fr;gap:14px;font-size:18px;line-height:1.65;color:#edf0e3}
 .how li:before{content:counter(steps) '.';font-weight:600;color:#efae42}
-.inline-link{display:inline;font:inherit;text-align:left;padding:0;border-bottom:1px solid #e4d5aa;color:#fff1c5;line-height:1.5}
-.inline-link:hover{color:#efae42}
 .footer{min-height:85px;font-size:14px;color:#cbd5bd;border-top:1px solid #d9e1c42b}
-.footer .text-button{font-size:15px}
-dialog{width:min(520px,calc(100% - 40px));background:#1d2c24;color:#f0f1e5;border:1px solid #8f9d7b;padding:38px 38px 42px;box-shadow:0 25px 90px #0009}
-dialog::backdrop{background:#0b1511bf;backdrop-filter:blur(5px)}
-#close-dialog{position:absolute;right:17px;top:7px;color:#d1dac4;font-size:30px;padding:0 5px}
-.dialog-label{font-size:14px;color:#bdceb0;margin-bottom:16px}
-dialog h2{font:500 32px Oswald,Arial,sans-serif;margin-bottom:18px}
-#dialog-text{font-size:17px;line-height:1.85;color:#dee7d3}
 .skip{position:fixed;left:20px;top:-70px;background:#efae42;color:#112014;padding:10px 16px;z-index:20}
 .skip:focus{top:10px}
 @media(min-width:1800px){.main{gap:140px}
@@ -87,8 +75,6 @@ h1{font-size:62px}
 .header{height:95px;flex-wrap:wrap;gap:0;align-content:center;position:relative}
 .brand{font-size:27px;gap:10px}
 .brand-mark{width:30px;height:36px;font-size:25px}
-.login{font-size:16px;margin-left:auto}
-.login span{margin-left:7px}
 .main{padding-top:25px;padding-bottom:30px;gap:28px;min-height:0}
 .eyebrow{font-size:14px;letter-spacing:1.2px;margin-bottom:20px}
 h1{font-size:clamp(45px,12.5vw,63px);letter-spacing:-.7px;line-height:1.12}
@@ -100,12 +86,8 @@ h1{font-size:clamp(45px,12.5vw,63px);letter-spacing:-.7px;line-height:1.12}
 .how li{font-size:17px;gap:10px;grid-template-columns:20px 1fr}
 .how ol{gap:15px}
 .footer{flex-wrap:wrap;justify-content:flex-start;gap:8px 20px;padding-top:15px;padding-bottom:22px;min-height:0;font-size:14px}
-.footer .text-button{font-size:14px}
 .backdrop{background-position:60% center}
 .shade{background:linear-gradient(90deg,#0d1815df,#0d18157d),linear-gradient(0deg,#0d1815d9,#0d18153b 80%)}
-dialog{padding:32px 25px}
-dialog h2{font-size:29px}
-#dialog-text{font-size:17px}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;scroll-behavior:auto!important}
 }
