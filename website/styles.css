@@ -15,6 +15,8 @@ h1,h2,p{margin:0}
 .brand{display:flex;align-items:center;gap:13px;font:500 32px/1 Oswald,'Arial Narrow',Arial,sans-serif}
 .brand>span:last-child>span{color:#efae42}
 .brand-mark{display:block;width:43px;height:48px;object-fit:contain;flex:none}
+.header-link{font-size:16px;font-weight:600;color:#d7dfcb;white-space:nowrap}
+.header-link:hover{color:#efae42}
 .main{width:calc(100% - 112px);max-width:1600px;margin:auto;min-height:calc(100svh - 190px);display:grid;grid-template-columns:1.1fr .9fr;gap:90px;align-items:center;padding:45px 0 65px}
 .intro{max-width:650px}
 h1{font:500 clamp(58px,5vw,82px)/1.1 Oswald,'Arial Narrow',Arial,sans-serif;letter-spacing:-1.1px}

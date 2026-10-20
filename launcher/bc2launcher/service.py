@@ -29,10 +29,11 @@ def start_game(installation):
 
 
 class LauncherService:
-    def __init__(self,public_key,settings,fetch=fetch_bytes,clock=None,launch=start_game,progress=None):
+    def __init__(self,public_key,settings,fetch=fetch_bytes,clock=None,launch=start_game,progress=None,before_play=None):
         self.public_key=public_key; self.settings=settings; self.fetch=fetch
         self.clock=clock or (lambda:datetime.now(timezone.utc)); self.launch=launch
         self.progress=progress or (lambda message:None); self.cancel=threading.Event()
+        self.before_play=before_play or (lambda:None)
 
     def _policy(self):
         saved=self.settings.load()
@@ -60,7 +61,7 @@ class LauncherService:
             data=p.read_bytes()
             good=(hashlib.sha256(data).hexdigest()==asset.sha256 and len(data)==asset.size) if asset.name=='dinput8.dll' else read_managed_ini(data)==(r.master_host,'0')
             if not good: return CheckResult('UPDATE_REQUIRED','Доступно обязательное обновление файлов подключения.',r)
-        return CheckResult('READY','Файлы проверены. Можно играть.',r)
+        return CheckResult('READY','Файлы проверены.',r)
 
     def _run(self,action):
         try: return action()
@@ -106,6 +107,7 @@ class LauncherService:
                 _recover(root)
                 result=self._check(root,recover=False)
                 if result.allowed:
+                    self.before_play()
                     self._cancelled(); ensure_game_closed()
                     self.launch(validate_game_dir(root))
                 return result

@@ -1,0 +1,17 @@
+.header-link{font-size:16px;font-weight:600;color:#d7dfcb;white-space:nowrap}
+.header-link:hover{color:#efae42}
+.help-main{width:calc(100% - 112px);max-width:900px;margin:24px auto 64px;min-height:calc(100svh - 280px)}
+.help-main h1{font:500 clamp(30px,4vw,44px)/1.2 Oswald,Arial,sans-serif;text-transform:none;letter-spacing:0;margin-bottom:30px}
+.questions{background:rgba(18,33,26,.92);border-top:2px solid #efae42;padding:8px 30px}
+.questions details{border-bottom:1px solid #d9e1c42b;padding:18px 0}
+.questions details:last-child{border-bottom:0}
+.questions summary{cursor:pointer;font-size:18px;font-weight:700;line-height:1.55;color:#eff0e3;padding-right:8px}
+.questions summary::marker{color:#efae42}
+.questions summary:focus-visible{outline:2px solid #efae42;outline-offset:6px}
+.answer{padding-top:14px;font-size:17px;line-height:1.8;color:#dce3d5;overflow-wrap:anywhere}
+.answer p+p{margin-top:12px}
+.answer a{color:#efae42;text-decoration:underline;text-underline-offset:3px}
+.answer code{font-size:.9em;color:#f1f0e6;background:#0e1b14;padding:1px 4px}
+.help-page .shade{background:linear-gradient(90deg,#0d1815ed,#0d18158c)}
+@media(max-width:900px){.help-main{width:calc(100% - 48px)}}
+@media(max-width:560px){.help-main{width:calc(100% - 36px);margin-top:14px;margin-bottom:36px}.questions{padding-inline:18px}.questions summary{font-size:17px}.answer{font-size:16px}}

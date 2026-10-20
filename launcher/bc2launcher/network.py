@@ -47,3 +47,36 @@ def fetch_bytes(url: str, max_bytes: int) -> bytes:
         raise
     except Exception as exc:
         raise UpdateError("Не удалось загрузить обновление. Проверьте интернет и повторите попытку.") from exc
+
+
+def download_file(url, target, max_bytes, *, cancelled, progress):
+    """Stream a bounded HTTPS artifact to a new file; never overwrite a caller's file."""
+    import os
+    from pathlib import Path
+    validate_url(url)
+    target = Path(target)
+    created = False
+    started = time.monotonic()
+    try:
+        if cancelled(): raise UpdateError('Download cancelled.')
+        request = urllib.request.Request(url, headers={'User-Agent': 'BC2Launcher/' + VERSION,
+                                                      'Cache-Control': 'no-cache'})
+        with OPENER.open(request, timeout=20) as response:
+            validate_url(response.geturl())
+            with target.open('xb') as output:
+                created = True
+                total = 0
+                while True:
+                    if cancelled(): raise UpdateError('Download cancelled.')
+                    if time.monotonic() - started > 600: raise UpdateError('Download timed out.')
+                    chunk = response.read(min(65536, max_bytes + 1 - total))
+                    if not chunk: break
+                    total += len(chunk)
+                    if total > max_bytes: raise UpdateError('Download exceeds size limit.')
+                    output.write(chunk)
+                    progress(total)
+                output.flush(); os.fsync(output.fileno())
+    except Exception as exc:
+        if created: target.unlink(missing_ok=True)
+        if isinstance(exc, UpdateError): raise
+        raise UpdateError('Unable to download launcher update.') from exc
