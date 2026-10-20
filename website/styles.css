@@ -14,10 +14,9 @@ h1,h2,p{margin:0}
 .header{height:105px;position:relative}
 .brand{display:flex;align-items:center;gap:13px;font:500 32px/1 Oswald,'Arial Narrow',Arial,sans-serif}
 .brand>span:last-child>span{color:#efae42}
-.brand-mark{display:inline-flex;width:39px;height:45px;align-items:center;justify-content:center;background:#efae42;color:#1b251e;font-size:30px;font-weight:700;transform:skew(-8deg)}
+.brand-mark{display:block;width:43px;height:48px;object-fit:contain;flex:none}
 .main{width:calc(100% - 112px);max-width:1600px;margin:auto;min-height:calc(100svh - 190px);display:grid;grid-template-columns:1.1fr .9fr;gap:90px;align-items:center;padding:45px 0 65px}
 .intro{max-width:650px}
-.eyebrow{font-size:16px;letter-spacing:2px;font-weight:600;color:#d7dfcb;margin-bottom:24px}
 h1{font:500 clamp(58px,5vw,82px)/1.1 Oswald,'Arial Narrow',Arial,sans-serif;letter-spacing:-1.1px}
 h1 em{font-style:normal;color:#efae42}
 .description{font-size:20px;line-height:1.8;margin-top:28px;color:#e0e4d8}
@@ -47,13 +46,11 @@ h1{font-size:59px}
 .how{padding:26px}
 .how li{font-size:17px}
 .button{font-size:16px;gap:22px;padding:12px 18px}
-.eyebrow{font-size:15px}
 }
 @media(max-height:800px) and (min-width:901px){.header{height:85px}
 .main{min-height:calc(100svh - 155px);padding-block:25px}
 .footer{min-height:70px}
 h1{font-size:62px}
-.eyebrow{margin-bottom:17px}
 .description{margin-top:21px;font-size:18px}
 .actions{margin-top:24px}
 .how ol{gap:16px}
@@ -74,9 +71,8 @@ h1{font-size:62px}
 @media(max-width:560px){.header,.main,.footer{width:calc(100% - 36px)}
 .header{height:95px;flex-wrap:wrap;gap:0;align-content:center;position:relative}
 .brand{font-size:27px;gap:10px}
-.brand-mark{width:30px;height:36px;font-size:25px}
+.brand-mark{width:30px;height:36px}
 .main{padding-top:25px;padding-bottom:30px;gap:28px;min-height:0}
-.eyebrow{font-size:14px;letter-spacing:1.2px;margin-bottom:20px}
 h1{font-size:clamp(45px,12.5vw,63px);letter-spacing:-.7px;line-height:1.12}
 .description{font-size:17px;margin-top:22px;line-height:1.85}
 .actions{gap:12px;margin-top:25px}
