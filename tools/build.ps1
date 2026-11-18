@@ -1,5 +1,5 @@
-param([switch]$Versioned, [switch]$InstallPreview, [string]$Version = '0.2.6',
-      [int]$PolicyRevision = 7, [string]$MinimumLauncherVersion = '0.2.6',
+param([switch]$Versioned, [switch]$InstallPreview, [string]$Version = '0.2.8',
+      [int]$PolicyRevision = 9, [string]$MinimumLauncherVersion = '0.2.8',
       [string]$SigningKey, [string]$InnoCompiler)
 
 $ErrorActionPreference = 'Stop'

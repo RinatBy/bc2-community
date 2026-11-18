@@ -9,7 +9,7 @@
 
 ## Пользователю
 
-Скачайте `BC2Launcher-0.2.6-portable.zip`, распакуйте целиком в отдельную от игры
+Скачайте `BC2Launcher-0.2.8-portable.zip`, распакуйте целиком в отдельную от игры
 папку и запустите `BC2Launcher.exe`. Установка в Windows не требуется.
 Самообновление сохраняется. Не распаковывайте новую версию поверх работающей:
 используйте встроенное обновление либо отдельную папку.
@@ -31,7 +31,7 @@ Python 3.12. Создать `.venv`, установить `requirements-lock.txt
 Запуск исходников: `.venv\Scripts\python.exe launcher\run_launcher.py`.
 Автотесты: задать `PYTHONPATH=launcher`, выполнить
 `.venv\Scripts\python.exe -m unittest discover -s launcher/tests`.
-Сборка: `tools/build.ps1 -Versioned -Version 0.2.6 -PolicyRevision 7 -MinimumLauncherVersion 0.2.6` с локальным ключом подписания
+Сборка: `tools/build.ps1 -Versioned -Version 0.2.8 -PolicyRevision 9 -MinimumLauncherVersion 0.2.8` с локальным ключом подписания
 и Inno Setup ISCC.exe. Сборщик изолирует поиск DLL от посторонних программ
 в PATH. Он создаёт клиент, постоянный загрузчик, подписанный ZIP обновления,
 переносимый ZIP и установщик

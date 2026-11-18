@@ -141,10 +141,9 @@ class Window(QWidget):
         QLabel{background:transparent}
         QLabel#brand{font-family:Oswald;font-size:32px;font-weight:500}
         QLabel#panel-title{font-family:Oswald;font-size:31px;font-weight:500}
-        QLabel#description{font-size:18px;color:#e0e4d8}
-        QLabel#account-hint{font-size:15px;color:#cbd5bd}
+        QLabel#account-hint{font-size:20px;color:#e0e4d8}
         QLabel#footer{font-size:14px;color:#cbd5bd}
-        QLabel#online{font-size:15px;color:#cbd5bd}
+        QLabel#online{font-size:18px;font-weight:600;color:#efae42}
         QFrame#panel{background:rgba(18,33,26,186);border-top:2px solid #efae42}
         QProgressBar{border:1px solid #63735d;background:#14221b;min-height:5px;max-height:5px}
         QProgressBar::chunk{background:#efae42}
@@ -161,6 +160,8 @@ class Window(QWidget):
         QPushButton#quiet{border:0;background:transparent;padding:4px;color:#d7dfcb;font-size:14px}
         QPushButton#quiet:hover{color:#efae42}
         QPushButton#quiet:disabled{color:#828f7d}
+        QPushButton#help-link{border:0;background:transparent;padding:4px 8px;color:#d7dfcb;font-size:17px}
+        QPushButton#help-link:hover{color:#efae42}
         ''')
         outer=QVBoxLayout(self); outer.setContentsMargins(56,30,56,24); outer.setSpacing(24)
         header=QHBoxLayout()
@@ -176,8 +177,7 @@ class Window(QWidget):
         body=QHBoxLayout(); body.setSpacing(64)
         intro=QVBoxLayout(); intro.setSpacing(0); intro.addStretch()
         self.headline=Headline(); intro.addWidget(self.headline); intro.addSpacing(28)
-        copy=QLabel('Площадка для СНГ игроков в\nBattlefield: Bad Company 2.'); copy.setObjectName('description'); copy.setWordWrap(True); intro.addWidget(copy)
-        intro.addSpacing(16); hint=QLabel('Аккаунт создаётся в самой игре.'); hint.setObjectName('account-hint'); intro.addWidget(hint)
+        hint=QLabel('Аккаунт создаётся в самой игре.'); hint.setObjectName('account-hint'); hint.setWordWrap(True); intro.addWidget(hint)
         intro.addStretch(); body.addLayout(intro,1)
         panel=QFrame(); panel.setObjectName('panel'); panel.setFixedWidth(430); box=QVBoxLayout(panel); box.setContentsMargins(28,24,28,24); box.setSpacing(12)
         heading=QLabel('Подключение к игре'); heading.setObjectName('panel-title'); box.addWidget(heading); box.addSpacing(3)
@@ -196,7 +196,8 @@ class Window(QWidget):
         body.addWidget(panel,0,Qt.AlignVCenter); outer.addLayout(body,1)
         footer_row=QHBoxLayout()
         footer=QLabel('Лаунчер '+VERSION); footer.setObjectName('footer'); footer_row.addWidget(footer)
-        help_button=QPushButton('Помощь'); help_button.setObjectName('quiet'); help_button.clicked.connect(self.show_help)
+        help_button=QPushButton('F.A.Q.'); help_button.setObjectName('help-link')
+        help_button.setCursor(Qt.PointingHandCursor); help_button.clicked.connect(self.show_help)
         footer_row.addWidget(help_button)
         footer_row.addStretch()
         self.app_update_label=QLabel(); self.app_update_label.setObjectName('footer'); self.app_update_label.setTextFormat(Qt.PlainText)
@@ -450,7 +451,7 @@ class Window(QWidget):
     def app_update_received(self,result):
         self.app_update_status=result
         messages={'UNKNOWN':'Проверка лаунчера…','CURRENT':'','AVAILABLE':'Доступно обновление лаунчера',
-                  'REQUIRED':'Требуется обновление лаунчера','STAGED':'Обновление лаунчера готово',
+                  'REQUIRED':'Требуется обновление лаунчера','STAGED':'',
                   'ERROR':'Не удалось проверить или обновить лаунчер','FAILED':'Новая версия не запустилась',
                   'CANCELLED':'Обновление лаунчера отменено','INSTALLER_REQUIRED':'Нужен новый установщик с сайта',
                   'RESTARTING':'Перезапуск лаунчера…'}
@@ -458,6 +459,9 @@ class Window(QWidget):
         self.app_update_label.setToolTip(result.error)
         self.app_update_label.setVisible(bool(self.app_update_label.text()))
         self.app_update_button.setText('Обновить и перезапустить' if result.restart_ready else 'Повторить проверку')
+        self.app_update_button.setObjectName('primary' if result.restart_ready else 'quiet')
+        self.app_update_button.style().unpolish(self.app_update_button)
+        self.app_update_button.style().polish(self.app_update_button)
         self.app_update_button.setVisible(result.state not in ('UNKNOWN','CURRENT','RESTARTING'))
         if result.state=='INSTALLER_REQUIRED':self.app_update_button.setText('Открыть сайт')
         if result.state=='RESTARTING':self._closing=True

@@ -38,7 +38,7 @@ with tempfile.TemporaryDirectory() as folder:
  assets=Path(folder)
  w=Window(assets,settings=Settings(),auto_check=False)
  with patch('bc2launcher.ui.QDesktopServices.openUrl',return_value=True) as opened, patch('bc2launcher.ui.QDialog.exec') as modal:
-  button=next(b for b in w.findChildren(QPushButton) if b.text()=='Помощь')
+  button=next(b for b in w.findChildren(QPushButton) if b.text()=='F.A.Q.')
   button.click()
   result={'urls':[call.args[0].toString() for call in opened.call_args_list],'modal_calls':modal.call_count}
  print(json.dumps(result))
