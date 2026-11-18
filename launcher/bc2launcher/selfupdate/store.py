@@ -7,6 +7,10 @@ from .paths import inside, reject_links, validate_version
 from .policy import _digest
 
 
+class UpdateBusy(UpdateError):
+    pass
+
+
 class UpdateStore:
     def __init__(self, root):
         self.root = reject_links(root)
@@ -40,7 +44,7 @@ class UpdateStore:
                 else:
                     import fcntl
                     fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
-            except OSError as exc: raise UpdateError('Another launcher is updating this installation.') from exc
+            except OSError as exc: raise UpdateBusy('Another launcher is updating this installation.') from exc
             try: yield
             finally:
                 if os.name == 'nt': stream.seek(0); msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)

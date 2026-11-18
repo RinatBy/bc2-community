@@ -1,6 +1,7 @@
 altgraph==0.17.5
 cffi==2.1.1
 cryptography==50.0.2
+libtorrent==2.1.1
 packaging==26.3
 pefile==2024.8.26
 pycparser==3.11

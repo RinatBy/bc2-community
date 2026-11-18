@@ -13,10 +13,13 @@ if sys.platform == 'win32':
 
 root = Path(SPECPATH).parent
 version_file = Path(os.environ['BC2_BUILD_VERSION_FILE'])
+resources = [(str(root / 'launcher' / 'assets'), 'assets'), (str(version_file), 'assets')]
+if os.environ.get('BC2_INSTALL_PREVIEW_FILE'):
+    resources.append((os.environ['BC2_INSTALL_PREVIEW_FILE'], 'assets'))
 analysis = Analysis(
     [str(root / 'launcher' / 'run_launcher.py')],
     pathex=[str(root / 'launcher')],
-    binaries=[], datas=[(str(root / 'launcher' / 'assets'), 'assets'), (str(version_file), 'assets')],
+    binaries=[], datas=resources,
     hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[],
     excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'tkinter'],
     noarchive=False,

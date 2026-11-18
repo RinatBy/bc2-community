@@ -3,6 +3,7 @@ import unittest
 import json
 import os
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 from selfupdate_helpers import PUBLIC,NOW,signed,policy_payload,make_archive
@@ -11,6 +12,33 @@ from bc2launcher.selfupdate.service import SelfUpdateService
 
 
 class ServiceTests(unittest.TestCase):
+    def test_startup_policy_retries_until_bootstrap_releases_its_lock(self):
+        with tempfile.TemporaryDirectory() as folder, ExitStack() as activation:
+            service, _ = self.create(folder)
+            service.version = '0.2.1'
+            activation.enter_context(service.store.locked())
+            with patch.object(service.cancel, 'wait', side_effect=lambda _: activation.close()):
+                result = service.check()
+            self.assertEqual(result.state, 'CURRENT')
+            self.assertTrue(result.play_allowed)
+
+    def test_download_progress_reaches_ui_before_staging_completes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            service,p=self.create(folder)
+            events=[]
+            service.progress=events.append
+            original_download=service.download
+            size=p['artifact']['size']
+            def download(url,path,limit,**kwargs):
+                original_download(url,path,limit,**kwargs)
+                kwargs['progress'](size//2)
+                kwargs['progress'](size)
+            service.download=download
+            self.assertTrue(service.prepare().restart_ready)
+            transfers=[e for e in events if hasattr(e,'downloaded')]
+            self.assertTrue(any(e.downloaded==size//2 and e.total==size for e in transfers))
+            self.assertEqual(transfers[-1].downloaded,size)
+
     def create(self,folder,minimum='0.2.0',revision=1):
         data=make_archive(); p=policy_payload(revision=revision,archive=data)
         p['minimum_launcher_version']=minimum

@@ -8,6 +8,9 @@ from bc2launcher.manifest import UpdateError
 
 class TransactionTests(unittest.TestCase):
     def setUp(self):
+        guard = patch('bc2launcher.transaction.ensure_game_closed')
+        guard.start()
+        self.addCleanup(guard.stop)
         self.tmp = tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
         (self.root/'BFBC2Game.exe').write_bytes(b'MZ'+b'\0'*64)

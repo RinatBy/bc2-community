@@ -2,15 +2,16 @@ from pathlib import Path
 from PySide6.QtCore import Qt,QThread,Signal,QUrl,QTimer,QPointF,QSize
 from PySide6.QtGui import QPixmap,QPainter,QLinearGradient,QColor,QDesktopServices,QFontDatabase,QFont,QFontMetricsF,QIcon
 from PySide6.QtWidgets import (QApplication,QWidget,QVBoxLayout,QHBoxLayout,QLabel,QPushButton,
-                              QFrame,QFileDialog,QMessageBox,QInputDialog,QSizePolicy,QDialog)
+                              QFrame,QFileDialog,QMessageBox,QInputDialog,QSizePolicy,QDialog,QProgressBar)
 from . import VERSION
 from .settings import Settings
 from .service import LauncherService,CheckResult
 from .game import validate_game_dir
+from .game_install import GameInstallService, InstallProfile, InstallPaths, find_uninstaller, run_uninstall
 from .manifest import UpdateError
 from .ui_model import controls
 from .online import fetch_online
-from .selfupdate.service import AppUpdateStatus
+from .selfupdate.service import AppUpdateStatus,AppUpdateProgress
 
 
 class BrandMark(QWidget):
@@ -91,7 +92,7 @@ class OnlineJob(QThread):
 
 class AppUpdateJob(QThread):
     result=Signal(object)
-    progress=Signal(str)
+    progress=Signal(object)
     def __init__(self,service,action):
         super().__init__(); self.service=service; self.action=action
     def run(self):
@@ -100,10 +101,30 @@ class AppUpdateJob(QThread):
         except Exception as exc:self.result.emit(AppUpdateStatus('ERROR',False,False,str(exc)))
 
 
+class GameInstallJob(QThread):
+    progress=Signal(object)
+    result=Signal(object)
+
+    def __init__(self,service,action):
+        super().__init__(); self.service=service; self.action=action
+
+    def run(self):
+        self.service.progress=self.progress.emit
+        try:
+            self.result.emit((self.action(), ''))
+        except (UpdateError,OSError) as exc:
+            self.result.emit((None, str(exc)))
+        except Exception:
+            self.result.emit((None, 'Операция установки прервана. Проверьте путь, место и журнал Setup.'))
+
+
 class Window(QWidget):
-    def __init__(self,assets,*,settings=None,app_updates=None,auto_check=True):
+    def __init__(self,assets,*,settings=None,app_updates=None,game_installer=None,auto_check=True):
         super().__init__(); self.assets=assets; self.settings=settings or Settings(); self.job=None; self.state='NEED_FOLDER'
         self.app_updates=app_updates; self.app_job=None; self.app_update_status=AppUpdateStatus('UNKNOWN',False,False)
+        self.game_installer=game_installer; self.install_job=None; self.install_phase=''; self.install_result=None
+        self.install_library=None; self.install_cleaning=False; self.install_completed=False
+        self.last_install_library=''
         self.online_job=None; self._closing=False
         self.online_timer=QTimer(self); self.online_timer.setInterval(30000); self.online_timer.timeout.connect(self.poll_online)
         self.background=QPixmap(str(assets/'valparaiso-original.png'))
@@ -125,6 +146,8 @@ class Window(QWidget):
         QLabel#footer{font-size:14px;color:#cbd5bd}
         QLabel#online{font-size:15px;color:#cbd5bd}
         QFrame#panel{background:rgba(18,33,26,186);border-top:2px solid #efae42}
+        QProgressBar{border:1px solid #63735d;background:#14221b;min-height:5px;max-height:5px}
+        QProgressBar::chunk{background:#efae42}
         QPushButton{background:rgba(29,44,31,105);border:1px solid rgba(228,233,211,118);padding:9px 16px;color:#eff0e3;font-weight:600}
         QPushButton:hover{background:#314434} QPushButton:disabled{color:#9a9f92;border-color:#56634f;background:rgba(25,37,29,100)}
         QPushButton#brand-link{background:transparent;border:0;padding:0}
@@ -161,7 +184,10 @@ class Window(QWidget):
         box.addWidget(QLabel('Папка установленной игры'))
         self.folder_label=QLabel('Папка не выбрана'); self.folder_label.setWordWrap(True); self.folder_label.setTextFormat(Qt.PlainText); self.folder_label.setMinimumHeight(44); box.addWidget(self.folder_label)
         self.choose=QPushButton('Выбрать папку'); self.choose.clicked.connect(self.select_folder); box.addWidget(self.choose)
+        self.install_game_button=QPushButton('Установить игру'); self.install_game_button.clicked.connect(self.manage_game_installation)
+        box.addWidget(self.install_game_button)
         self.status=QLabel('Выберите папку с BFBC2Game.exe.'); self.status.setWordWrap(True); self.status.setTextFormat(Qt.PlainText); self.status.setMinimumHeight(58); self.status.setStyleSheet('font-size:17px;color:#efe2ba'); box.addWidget(self.status)
+        self.install_meter=QProgressBar();self.install_meter.setTextVisible(False);box.addWidget(self.install_meter);self.install_meter.hide()
         row=QHBoxLayout(); self.check=QPushButton('Проверить'); self.update=QPushButton('Обновить'); self.update.setObjectName('primary'); row.addWidget(self.check); row.addWidget(self.update); box.addLayout(row)
         self.play=QPushButton('ИГРАТЬ  →'); self.play.setObjectName('play'); box.addWidget(self.play)
         row=QHBoxLayout(); self.rollback=QPushButton('Откатить'); self.cancel=QPushButton('Отменить'); self.rollback.setObjectName('quiet'); self.cancel.setObjectName('quiet'); row.addWidget(self.rollback); row.addWidget(self.cancel); box.addLayout(row)
@@ -181,7 +207,11 @@ class Window(QWidget):
         try:
             self.service=LauncherService((assets/'public-key.bin').read_bytes(),self.settings,
                                         before_play=app_updates.require_play_allowed if app_updates else None)
-            self.folder=self.settings.load().get('game_dir','')
+            preferences=self.settings.load()
+            self.folder=preferences.get('game_dir','')
+            last_library=preferences.get('install_library')
+            if isinstance(last_library,str):
+                self.last_install_library=last_library
         except Exception:
             self.service=None; self.folder=''; self.status.setText('Не удалось прочитать настройки или ключ проверки. Переустановите лаунчер.')
         self.folder_label.setText(self.folder or 'Папка не выбрана'); self.buttons()
@@ -203,22 +233,160 @@ class Window(QWidget):
         bottom=QLinearGradient(0,self.height(),0,0); bottom.setColorAt(0,QColor(12,23,18,153)); bottom.setColorAt(.45,QColor(12,23,18,0)); p.fillRect(self.rect(),bottom)
 
     def buttons(self):
-        values=controls(self.state,bool(self.folder and self.service),bool(self.job))
+        values=controls(self.state,bool(self.folder and self.service),bool(self.job or self.install_job))
+        values['cancel']=bool(self.job or self.app_job or self.install_can_cancel())
         if self._closing:values={name:False for name in values}
         if self.app_updates and not self.app_update_status.play_allowed:values['play']=False
+        self.play.setToolTip('Повторите проверку лаунчера внизу окна.' if self.app_updates and self.app_update_status.state=='ERROR' else '')
         for name,value in values.items():getattr(self,name).setEnabled(value)
-        self.app_update_button.setEnabled(not self.app_job and not self.job and not self._closing)
+        busy=bool(self.install_job or self.job or self.app_job or self._closing)
+        if not self.install_job:
+            game=self.selected_game()
+            can_uninstall=bool(game and self.uninstaller_available(game))
+            self.install_game_button.setVisible(bool(self.game_installer and (not game or can_uninstall)))
+            self.install_game_button.setText('Удалить игру' if can_uninstall else
+                'Продолжить установку' if self.install_library else 'Установить игру')
+        self.install_game_button.setEnabled(not busy)
+        self.app_update_button.setEnabled(not (self.app_job or self.job or self.install_job or self._closing))
+
+    def install_can_cancel(self):
+        return (self.install_job and self.install_phase not in ('SETUP','VERIFY_GAME','UNINSTALL')
+                and not self.game_installer.cancel.is_set())
+
+    def selected_game(self):
+        if self.folder:
+            try:
+                return validate_game_dir(Path(self.folder))
+            except (UpdateError,OSError):
+                pass
+        return None
+
+    def uninstaller_available(self,game):
+        try:
+            return find_uninstaller(game.root) is not None
+        except (UpdateError,OSError):
+            return False
+
+    def manage_game_installation(self):
+        if self._closing or self.job or self.app_job or self.install_job or not self.game_installer:
+            return
+        game=self.selected_game()
+        if game is None:
+            self.select_install_library()
+            return
+        if not self.uninstaller_available(game):
+            self.buttons()
+            return
+        if QMessageBox.question(self,'Удалить игру',
+                f'Запустить штатный деинсталлятор Battlefield: Bad Company 2?\n\n{game.root}',
+                QMessageBox.Yes|QMessageBox.No,QMessageBox.No)==QMessageBox.Yes:
+            self._start_install_job(lambda:run_uninstall(game.root),phase='UNINSTALL')
+
+    def select_install_library(self):
+        folder=QFileDialog.getExistingDirectory(self,'Папка библиотеки для загрузки и установки',self.last_install_library)
+        if not folder:return
+        try:
+            paths=InstallPaths.from_library(Path(folder))
+        except (UpdateError,OSError) as exc:
+            QMessageBox.warning(self,'Папка библиотеки',str(exc));return
+        self.install_library=paths.library
+        self.last_install_library=str(paths.library)
+        try:
+            self.settings.update_fields(install_library=self.last_install_library)
+        except (UpdateError,OSError) as exc:
+            QMessageBox.warning(self,'Папка библиотеки',f'Не удалось запомнить папку библиотеки: {exc}')
+        self.install_result=None;self.install_completed=False
+        self.install_game_button.setText('Продолжить установку')
+        self.folder_label.setToolTip(f'Игра: {paths.game}\nКэш загрузки: {paths.cache}')
+        self._start_install_job(lambda:self.game_installer.install(paths.library))
+
+    def _start_install_job(self,action,*,phase='CHECK_CACHE'):
+        self.game_installer.cancel.clear()
+        self.install_cleaning=phase=='CLEANUP';self.install_phase=phase
+        self.status.setText({'CLEANUP':'Очистка кэша…','UNINSTALL':'Открываем деинсталлятор…'}.get(
+            phase,'Проверка папок и свободного места…'))
+        self.install_job=GameInstallJob(self.game_installer,action)
+        self.install_job.progress.connect(self.install_progress)
+        self.install_job.result.connect(self.install_received)
+        self.install_job.finished.connect(self.install_finished)
+        self.buttons();self.install_job.start()
+
+    def install_progress(self,event):
+        self.install_phase=event.phase
+        if self.game_installer.cancel.is_set() and event.phase not in ('SETUP','VERIFY_GAME'):
+            return
+        if event.phase in ('DOWNLOAD','SETUP') and event.total:
+            percent=min(100 if event.phase=='DOWNLOAD' else 99,event.downloaded*100//event.total)
+            self.install_meter.setRange(0,100);self.install_meter.setValue(percent);self.install_meter.show()
+            if event.phase=='DOWNLOAD':
+                self.status.setText(f'Загрузка игры: {percent}% · {event.downloaded/10**9:.2f} / {event.total/10**9:.2f} ГБ\nСкорость: {event.speed*8/10**6:.1f} Мбит/с')
+            else:
+                self.status.setText(f'Установка: {percent}% по файлам\n{event.downloaded/10**9:.2f} / {event.total/10**9:.2f} ГБ')
+        else:
+            self.install_meter.setRange(0,0);self.install_meter.show()
+            self.status.setText({'CHECK_CACHE':'Проверяем сохранённые части торрента…','FINALIZE_DOWNLOAD':'Завершаем загрузку игры…','VERIFY':'Проверяем скачанные файлы…',
+                'VERIFY_CACHE':'Проверяем файлы, сохранённые в кэше…',
+                'SETUP':'Установка игры. Дождитесь завершения…','VERIFY_GAME':'Проверяем файлы установленной игры…'}.get(event.phase,'Подготовка…'))
+        self.buttons()
+
+    def install_received(self,outcome):
+        result,error=outcome
+        if self.install_phase=='UNINSTALL':
+            self.uninstall_received(result,error)
+            return
+        if error:
+            self.status.setText(error)
+            return
+        if self.install_cleaning:
+            self.status.setText('Игра установлена. Кэш удалён.')
+            return
+        try:self.settings.remember_folder(result.game_dir)
+        except (UpdateError,OSError) as exc:
+            self.status.setText(f'Игра установлена, но путь не сохранён: {exc}');return
+        self.folder=str(result.game_dir);self.folder_label.setText(self.folder)
+        self.folder_label.setToolTip('')
+        self.install_library=None
+        self.install_result=result;self.install_completed=True;self.state='NEED_FOLDER'
+        self.status.setText('Игра установлена и проверена.')
+
+    def uninstall_received(self,completed,error):
+        if self.selected_game() is not None:
+            self.status.setText(error or ('В папке остались файлы игры.' if completed else 'Удаление не завершено.'))
+            return
+        self.folder='';self.state='NEED_FOLDER';self.install_library=None
+        self.folder_label.setText('Папка не выбрана');self.folder_label.setToolTip('')
+        try:
+            self.settings.remember_folder('')
+        except (UpdateError,OSError) as exc:
+            self.status.setText(f'Не удалось сбросить сохранённый путь: {exc}')
+            return
+        self.status.setText(error or 'Игра удалена.')
+
+    def install_finished(self):
+        self.install_job.deleteLater();self.install_job=None
+        self.install_meter.hide()
+        was_cleaning=self.install_cleaning;self.install_cleaning=False;self.install_phase=''
+        self.buttons()
+        if self._closing:self.close();return
+        if self.install_result and not was_cleaning:
+            result=self.install_result;self.install_result=None
+            if QMessageBox.question(self,'Игра установлена','Удалить скачанные файлы и торрент? Установленная игра останется.',
+                                    QMessageBox.Yes|QMessageBox.No,QMessageBox.No)==QMessageBox.Yes:
+                self._start_install_job(lambda:self.game_installer.cleanup(result),phase='CLEANUP')
+                return
+        if self.install_completed:
+            self.install_completed=False;self.work('update')
 
     def select_folder(self):
         folder=QFileDialog.getExistingDirectory(self,'Выберите папку Battlefield: Bad Company 2',self.folder)
         if not folder:return
         try:
             game=validate_game_dir(Path(folder)); self.settings.remember_folder(game.root)
-            self.folder=str(game.root); self.folder_label.setText(self.folder); self.work('check')
+            self.folder=str(game.root); self.folder_label.setText(self.folder); self.folder_label.setToolTip(''); self.work('check')
         except (UpdateError,OSError) as exc: QMessageBox.warning(self,'Папка игры',str(exc))
 
     def work(self,name,backup=None):
-        if self._closing or self.job or not self.service or not self.folder:return
+        if self._closing or self.job or self.install_job or not self.service or not self.folder:return
         self.service.cancel.clear(); self.state='UPDATING' if name=='update' else 'CHECKING'
         self.status.setText('Проверка обновлений…' if name!='rollback' else 'Восстановление…')
         fn=lambda:getattr(self.service,name)(Path(self.folder),backup) if backup else getattr(self.service,name)(Path(self.folder))
@@ -230,9 +398,16 @@ class Window(QWidget):
     def finished(self):
         self.job.deleteLater(); self.job=None; self.buttons()
         if self._closing:self.close()
+        elif self.state=='READY' and self.app_update_status.state=='ERROR':self.start_app_updates()
 
     def cancel_job(self):
-        if self.service:self.service.cancel.set(); self.status.setText('Отмена после безопасного завершения текущего шага…')
+        if self.install_can_cancel():
+            self.game_installer.cancel.set()
+            self.status.setText('Останавливаем очистку кэша…' if self.install_cleaning else 'Останавливаем установку…')
+            self.buttons()
+        if self.job and self.service:self.service.cancel.set(); self.status.setText('Отмена после безопасного завершения текущего шага…')
+        if self.app_job and self.app_updates:
+            self.app_updates.cancel.set();self.app_update_label.setText('Отмена загрузки лаунчера…')
 
     def start_online(self):
         self.online_timer.start(); self.poll_online()
@@ -266,7 +441,10 @@ class Window(QWidget):
         self.buttons(); self.app_job.start()
 
     def app_update_progress(self,state):
-        self.app_update_label.setText('Загрузка лаунчера…' if state=='DOWNLOAD' else 'Проверка новой версии…')
+        if isinstance(state,AppUpdateProgress):
+            percent=min(100,max(0,int(state.downloaded*100/state.total))) if state.total else 0
+            self.app_update_label.setText(f'Загрузка лаунчера: {percent}% · {state.downloaded/1048576:.1f} / {state.total/1048576:.1f} МБ')
+        else:self.app_update_label.setText('Загрузка лаунчера…' if state=='DOWNLOAD' else 'Проверка новой версии…')
         self.app_update_label.show()
 
     def app_update_received(self,result):
@@ -286,7 +464,7 @@ class Window(QWidget):
         self.buttons()
 
     def app_update_action(self):
-        if not self.app_updates or self.app_job:return
+        if not self.app_updates or self.app_job or self.install_job:return
         if self.app_update_status.state=='INSTALLER_REQUIRED':
             QDesktopServices.openUrl(QUrl('https://bc2.uplay2.ru/')); return
         if self.app_update_status.restart_ready:self._run_app_update(self.app_updates.request_restart)
@@ -312,8 +490,9 @@ class Window(QWidget):
         self.buttons()
         if self.job:self.cancel_job()
         if self.app_job:self.app_updates.cancel.set()
+        if self.install_can_cancel():self.game_installer.cancel.set()
         if self.online_job:self.online_job.requestInterruption()
-        if self.job or self.app_job or self.online_job:event.ignore()
+        if self.job or self.app_job or self.online_job or self.install_job:event.ignore()
         else:event.accept()
 
 
@@ -330,7 +509,10 @@ def run(assets,*,settings=None,app_updates=None,ready=None,smoke=False):
     configure_process_identity()
     app=QApplication([]); app.setApplicationName('BC2Launcher'); app.setOrganizationName('UPLAY2')
     app.setWindowIcon(QIcon(str(assets/'brand.ico')))
-    window=Window(assets,settings=settings,app_updates=app_updates,auto_check=not smoke); window.show()
+    installer=None
+    if (assets/'game-install'/'profile.json').is_file():
+        installer=GameInstallService(InstallProfile.load(assets/'game-install'))
+    window=Window(assets,settings=settings,app_updates=app_updates,game_installer=installer,auto_check=not smoke); window.show()
     if ready:QTimer.singleShot(0,ready)
     if smoke:QTimer.singleShot(2000,window.close)
     else:window.start_online();window.start_app_updates()

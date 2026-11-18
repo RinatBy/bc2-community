@@ -68,8 +68,11 @@ def download_file(url, target, max_bytes, *, cancelled, progress):
                 total = 0
                 while True:
                     if cancelled(): raise UpdateError('Download cancelled.')
-                    if time.monotonic() - started > 600: raise UpdateError('Download timed out.')
-                    chunk = response.read(min(65536, max_bytes + 1 - total))
+                    if time.monotonic() - started > 600: raise UpdateError('Превышено время загрузки. Повторите попытку.')
+                    # Return the available bytes instead of waiting for all 64 KiB.
+                    # This also lets cancellation/deadline checks run on slow links.
+                    chunk = response.read1(min(65536, max_bytes + 1 - total))
+                    if time.monotonic() - started > 600: raise UpdateError('Превышено время загрузки. Повторите попытку.')
                     if not chunk: break
                     total += len(chunk)
                     if total > max_bytes: raise UpdateError('Download exceeds size limit.')
@@ -79,4 +82,6 @@ def download_file(url, target, max_bytes, *, cancelled, progress):
     except Exception as exc:
         if created: target.unlink(missing_ok=True)
         if isinstance(exc, UpdateError): raise
+        if isinstance(exc, TimeoutError):
+            raise UpdateError('Сервер не передаёт данные. Повторите загрузку.') from exc
         raise UpdateError('Unable to download launcher update.') from exc

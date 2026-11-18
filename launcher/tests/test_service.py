@@ -10,6 +10,10 @@ from bc2launcher.settings import Settings
 
 class ServiceTests(unittest.TestCase):
     def setUp(self):
+        for name in ('bc2launcher.transaction.ensure_game_closed', 'bc2launcher.service.ensure_game_closed'):
+            guard = patch(name)
+            guard.start()
+            self.addCleanup(guard.stop)
         self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup)
         self.root=Path(self.tmp.name); self.game=self.root/'game'; self.game.mkdir()
         (self.game/'BFBC2Game.exe').write_bytes(b'MZ'+b'\0'*64)

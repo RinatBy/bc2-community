@@ -39,7 +39,12 @@ def self_test(assets):
         for name in ['valparaiso-original.png', 'Oswald.ttf', 'Manrope.ttf', 'brand.ico', 'FAQ_RU.md']:
             if not (assets / name).is_file():
                 raise RuntimeError('Missing resource: ' + name)
-        result.update(resources_ok=True, ok=True)
+        if (assets / 'game-install' / 'profile.json').is_file():
+            import libtorrent
+            from bc2launcher.game_install import InstallProfile
+            InstallProfile.load(assets / 'game-install')
+            result['libtorrent_version'] = libtorrent.version
+        result.update(resources_ok=True, ok=True, install_preview=(assets/'install-preview.flag').is_file())
     except Exception as exc:
         result.update(error_type=type(exc).__name__, error=str(exc))
     return result
@@ -94,9 +99,13 @@ def main():
         except Exception:
             from PySide6.QtWidgets import QApplication
             QApplication.instance().exit(1)
-    settings=Settings(inside(root,'cache','smoke-settings.json')) if smoke else None
+    preview=(assets/'install-preview.flag').is_file()
+    settings=Settings(inside(root,'cache','smoke-settings.json' if smoke else 'install-preview-settings.json')) if smoke or preview else None
+    def preview_offline(*args):
+        raise UpdateError('Local preview uses its signed cached policy.')
+    options={'fetch':preview_offline} if preview else {}
     with UpdateStore(root).locked('client.lock'):
-        return run(assets,settings=settings,app_updates=None if smoke else SelfUpdateService(root,(assets/'public-key.bin').read_bytes()),
+        return run(assets,settings=settings,app_updates=None if smoke else SelfUpdateService(root,(assets/'public-key.bin').read_bytes(),**options),
                    ready=ready,smoke=smoke)
 
 

@@ -55,7 +55,7 @@ class Settings:
             self._save(data)
 
     def update_fields(self,**fields):
-        if not set(fields)<= {'game_dir','installed_package'}: raise ValueError('Unexpected settings')
+        if not set(fields)<= {'game_dir','installed_package','install_library'}: raise ValueError('Unexpected settings')
         with self._locked():
             data=self.load(); data.update(fields); self._save(data)
 

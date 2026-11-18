@@ -1,4 +1,6 @@
-param([switch]$Versioned, [string]$Version = '0.2.2', [string]$SigningKey, [string]$InnoCompiler)
+param([switch]$Versioned, [switch]$InstallPreview, [string]$Version = '0.2.6',
+      [int]$PolicyRevision = 7, [string]$MinimumLauncherVersion = '0.2.6',
+      [string]$SigningKey, [string]$InnoCompiler)
 
 $ErrorActionPreference = 'Stop'
 $communityRoot = Split-Path -Parent $PSScriptRoot
@@ -13,7 +15,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'Invalid launcher version.' }
     if (-not $SigningKey) { $SigningKey = Join-Path $communityRoot '.secrets\release-signing.key' }
     if (-not (Test-Path -LiteralPath $SigningKey)) { throw 'Local signing key is required; no key will be generated.' }
-    $outputRelative = if ($Versioned) { "dist\local-$Version" } else { 'dist\release-build' }
+    $outputRelative = if ($InstallPreview) { "dist\install-preview-$Version" } elseif ($Versioned) { "dist\local-$Version" } else { 'dist\release-build' }
     $outputRoot = [IO.Path]::GetFullPath((Join-Path $communityRoot $outputRelative))
     $allowedOutput = [IO.Path]::GetFullPath((Join-Path $communityRoot 'dist'))
     if (-not $outputRoot.StartsWith($allowedOutput + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) { throw 'Build output must stay inside community/dist.' }
@@ -24,6 +26,11 @@ try {
     New-Item -ItemType Directory -Path $versionRoot -Force | Out-Null
     $env:BC2_BUILD_VERSION_FILE = Join-Path $versionRoot 'build-version.txt'
     [IO.File]::WriteAllText($env:BC2_BUILD_VERSION_FILE, $Version, [Text.Encoding]::ASCII)
+    Remove-Item Env:BC2_INSTALL_PREVIEW_FILE -ErrorAction SilentlyContinue
+    if ($InstallPreview) {
+        $env:BC2_INSTALL_PREVIEW_FILE = Join-Path $versionRoot 'install-preview.flag'
+        [IO.File]::WriteAllText($env:BC2_INSTALL_PREVIEW_FILE, 'local-only', [Text.Encoding]::ASCII)
+    }
     & $launcherPython tools/build_icon.py
     if ($LASTEXITCODE -ne 0) { throw 'Icon generation failed.' }
     & $launcherPython tools/build_help.py
@@ -45,15 +52,23 @@ try {
         $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
         if (-not $report.ok) { throw 'Frozen component did not confirm startup.' }
         if ($component.name -eq 'client' -and (-not ($report.qt_imports_ok -and $report.resources_ok) -or $report.version -ne $Version)) { throw 'Client Qt/resources/version mismatch.' }
+        if ($component.name -eq 'client') {
+            if ($InstallPreview.IsPresent -ne [bool]$report.install_preview) { throw 'Client preview mode differs from the requested build.' }
+            if ((Test-Path -LiteralPath 'launcher/assets/game-install/profile.json') -and -not $report.libtorrent_version) { throw 'Game installation dependencies are missing.' }
+        }
         Write-Output ($component.name + ' frozen startup: OK')
     }
     $archive = Join-Path $outputRoot "BC2Launcher-app-$Version.zip"
     if (Test-Path -LiteralPath $archive) { Remove-Item -LiteralPath $archive }
     & $launcherPython tools/package_launcher.py package --folder $clientPath --version $Version --private $SigningKey --output $archive
     if ($LASTEXITCODE -ne 0) { throw 'App package signing failed.' }
+    if ($InstallPreview) {
+        Get-FileHash -LiteralPath $archive -Algorithm SHA256 | Format-List Path,Hash
+        return
+    }
     $policyPath = Join-Path $outputRoot 'launcher-stable.json'
     $artifactUrl = "https://github.com/RinatBy/bc2-community/releases/download/v$Version-beta/BC2Launcher-app-$Version.zip"
-    & $launcherPython tools/package_launcher.py policy --archive $archive --version $Version --url $artifactUrl --revision 1 --minimum '0.2.0' --private $SigningKey --output $policyPath
+    & $launcherPython tools/package_launcher.py policy --archive $archive --version $Version --url $artifactUrl --revision $PolicyRevision --minimum $MinimumLauncherVersion --private $SigningKey --output $policyPath
     if ($LASTEXITCODE -ne 0) { throw 'Launcher policy signing failed.' }
     $seedRoot = Join-Path $outputRoot 'seed'
     if (Test-Path -LiteralPath $seedRoot) {
@@ -75,5 +90,6 @@ try {
     Get-FileHash -LiteralPath (Join-Path $outputRoot 'BC2Launcher-Setup.exe'),$archive,$portableArchive -Algorithm SHA256 | Format-List Path,Hash
 } finally {
     Remove-Item Env:BC2_BUILD_VERSION_FILE -ErrorAction SilentlyContinue
+    Remove-Item Env:BC2_INSTALL_PREVIEW_FILE -ErrorAction SilentlyContinue
     Pop-Location
 }

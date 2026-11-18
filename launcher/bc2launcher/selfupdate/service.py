@@ -13,10 +13,16 @@ from .paths import inside, version_dir
 from .policy import POLICY_LIMIT, verify_policy
 from .package import stage_package, verify_installed, verify_prepared
 from .process import probe_version
-from .store import UpdateStore
+from .store import UpdateBusy, UpdateStore
 
 FEED = 'https://bc2.uplay2.ru/updates/launcher-stable.json'
 FALLBACK_FEED = 'https://raw.githubusercontent.com/RinatBy/bc2-community/main/website/updates/launcher-stable.json'
+
+
+@dataclass(frozen=True)
+class AppUpdateProgress:
+    downloaded: int
+    total: int
 
 
 @dataclass(frozen=True)
@@ -48,13 +54,21 @@ class SelfUpdateService:
                 if not cached.is_file() or cached.stat().st_size > POLICY_LIMIT: raise
                 raw = cached.read_bytes()
         policy = verify_policy(raw, self.public_key, self.clock(), saved['highest_revision'])
-        self.store.accept(policy)
-        with self.store.locked():
-            # Never overwrite a newer policy accepted by another instance.
-            state = self.store.load()
-            if policy.payload_sha256 != state['payload_sha256']: raise UpdateError('Launcher policy changed concurrently.')
-            from ..transaction import atomic_write
-            atomic_write(inside(self.root, 'launcher-policy.json'), raw)
+        # The new client may start before the old bootstrap releases update.lock.
+        deadline = time.monotonic() + 5
+        while True:
+            try:
+                self.store.accept(policy)
+                with self.store.locked():
+                    # Never overwrite a newer policy accepted by another instance.
+                    state = self.store.load()
+                    if policy.payload_sha256 != state['payload_sha256']: raise UpdateError('Launcher policy changed concurrently.')
+                    from ..transaction import atomic_write
+                    atomic_write(inside(self.root, 'launcher-policy.json'), raw)
+                break
+            except UpdateBusy:
+                if time.monotonic() >= deadline or self.cancel.wait(.1):
+                    raise
         self.policy = policy
         return policy
 
@@ -90,9 +104,17 @@ class SelfUpdateService:
             archive = inside(cache, 'download-' + secrets.token_hex(12) + '.zip')
             try: verify_prepared(self.root, p, self.public_key)
             except (UpdateError, OSError):
-                self.progress('DOWNLOAD')
+                self.progress(AppUpdateProgress(0,p.artifact.size))
+                last_progress=None
+                def report(downloaded):
+                    nonlocal last_progress
+                    now=time.monotonic()
+                    if last_progress is None or downloaded==p.artifact.size or now-last_progress>=.25:
+                        self.progress(AppUpdateProgress(downloaded,p.artifact.size))
+                        last_progress=now
                 self.download(p.artifact.url, archive, p.artifact.size,
-                              cancelled=self.cancel.is_set, progress=lambda n: None)
+                              cancelled=self.cancel.is_set, progress=report)
+                self.progress('VERIFY')
                 stage_package(archive, p, self.root, self.public_key, cancelled=self.cancel.is_set)
             if self.cancel.is_set(): raise UpdateError('Update cancelled.')
             self.progress('PROBE')
